@@ -35,14 +35,14 @@ use winapi::um::shellapi::CommandLineToArgvW;
 
 
 const CMD_QUERY_CI: &[u16] = &[
-    'q' as u16, 'u' as u16, 'e' as u16, 'r' as u16, 'y' as u16, 'c' as u16, 'i' as u16, 0                           //queryci
+    'q' as u16, 'u' as u16, 'e' as u16, 'r' as u16, 'y' as u16, 'c' as u16, 'i' as u16                           //queryci
 ];
 const CMD_DISABLE_CI: &[u16] = &[
-    'd' as u16, 'i' as u16, 's' as u16, 'a' as u16, 'b' as u16, 'l' as u16, 'e' as u16, 'c' as u16, 'i' as u16, 0   //disableci
+    'd' as u16, 'i' as u16, 's' as u16, 'a' as u16, 'b' as u16, 'l' as u16, 'e' as u16, 'c' as u16, 'i' as u16   //disableci
 ];
 
 const CMD_SET_CI: &[u16] = &[
-    's' as u16, 'e' as u16, 't' as u16, 'c' as u16, 'i' as u16, 0                                                   //setci
+    's' as u16, 'e' as u16, 't' as u16, 'c' as u16, 'i' as u16                                                   //setci
 ];
 
 const CMD_CODE_QUERY_CI_CODE: i32 = 0;
