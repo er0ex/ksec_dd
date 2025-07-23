@@ -396,141 +396,154 @@ impl Common {
 
 
 
-    pub fn EnablePrivilege(token: HANDLE, privilege: LPWSTR) -> BOOL{
+        pub fn EnablePrivilege(token: HANDLE, privilege: LPWSTR) -> BOOL {
         let mut b_result: BOOL = FALSE;
-        let mut h_token: HANDLE = null_mut();
+        let mut h_token: HANDLE = token;
         let mut bprivilege_found: BOOL = FALSE;
-        let mut dw_token_info_size: DWORD = 0;
-        let mut dw_privilege_name_lenfht: DWORD;
         let mut ptoken_privileges: PTOKEN_PRIVILEGES = null_mut();
-        let mut laa: LUID_AND_ATTRIBUTES;
         let mut pwsz_privilege_name_temp: LPWSTR = null_mut();
-        let mut tp: TOKEN_PRIVILEGES = unsafe{zeroed::<TOKEN_PRIVILEGES>()};
-        unsafe{
-            if !token.is_null() {
-                h_token = token;
-            }else {
-                let res_: BOOL =  OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, h_token as *mut *mut c_void);
-                if res_ == FALSE{
+
+        unsafe {
+            // Получаем токен, если он не передан
+            if h_token.is_null() {
+                let success = OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &mut h_token);
+                if success == FALSE {
                     eprintln!("ERROR::PROCESS::TOKEN");
-                    
-                    if bprivilege_found == FALSE{
-                        eprintln!("ERROR::ENABLE::PRIVILEGE");
-                    }
-                    if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-                    if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-                    return b_result;
+                    eprintln!("ERROR::ENABLE::PRIVILEGE:::::1");
+                    return FALSE;
                 }
             }
 
-            let res_: BOOL = !GetTokenInformation(h_token, TokenPrivileges, NULL, 0, &mut dw_token_info_size);
-            if res_ == FALSE{
-                let err_ = GetLastError();
-                if err_ != ERROR_INSUFFICIENT_BUFFER {
-                    eprintln!("ERROR::GET_TOKEN_INFORMATION");
-                    if bprivilege_found == FALSE{
-                        eprintln!("ERROR::ENABLE::PRIVILEGE");
-                    }
-                    if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-                    if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-                    return b_result;
-                }
-            }
-
-            
-            ptoken_privileges = Common::Alloc(dw_token_info_size.try_into().unwrap()) as *mut TOKEN_PRIVILEGES;
-            if ptoken_privileges.is_null() {
-                if bprivilege_found == FALSE{
-                    eprintln!("ERROR::ENABLE::PRIVILEGE");
-                }
-                if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-                if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-                return b_result;
-            }
-
-
-            let res_: BOOL = !GetTokenInformation(h_token, TokenPrivileges, ptoken_privileges as *mut c_void,dw_token_info_size, dw_token_info_size as *mut u32);
-            if res_ == FALSE{
+            // Получаем размер буфера
+            let mut dw_token_info_size: DWORD = 0;
+            let success = GetTokenInformation(h_token, TokenPrivileges, null_mut(), 0, &mut dw_token_info_size);
+            if success == FALSE && GetLastError() != ERROR_INSUFFICIENT_BUFFER {
                 eprintln!("ERROR::GET_TOKEN_INFORMATION");
-                if bprivilege_found == FALSE{
-                    eprintln!("ERROR::ENABLE::PRIVILEGE");
+                eprintln!("ERROR::ENABLE::PRIVILEGE::::::::2");
+                if token.is_null() && !h_token.is_null() {
+                    CloseHandle(h_token);
                 }
-                if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-                if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-                return b_result;
+                return FALSE;
             }
 
-            for i in 0..(*ptoken_privileges).PrivilegeCount{
-                let privileges_ptr = &(*ptoken_privileges).Privileges as *const LUID_AND_ATTRIBUTES;
-                let luid_attr_ptr = privileges_ptr.add(i as usize);
-                let luid_attr: LUID_AND_ATTRIBUTES = *luid_attr_ptr;
-                laa = luid_attr;
-                dw_privilege_name_lenfht = 0;
+            // Выделяем память под TOKEN_PRIVILEGES
+            ptoken_privileges = Common::Alloc(dw_token_info_size as usize) as PTOKEN_PRIVILEGES;
+            if ptoken_privileges.is_null() {
+                eprintln!("ERROR::ENABLE::PRIVILEGE::::::::3");
+                if token.is_null() && !h_token.is_null() {
+                    CloseHandle(h_token);
+                }
+                return FALSE;
+            }
 
-                let res_: BOOL = LookupPrivilegeNameW(null() as *const u16, &mut laa.Luid as *mut LUID, null_mut() as *mut u16, dw_privilege_name_lenfht as *mut u32);
-                if res_ == FALSE{
-                    if GetLastError() != ERROR_INSUFFICIENT_BUFFER{
-                        eprintln!("ERROR::LOOKUP::PRIVILEGE");
-                        if bprivilege_found == FALSE{
-                        eprintln!("ERROR::ENABLE::PRIVILEGE");
-                        }
-                        if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-                        if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-                        return b_result;
-                    }
+            // Получаем привилегии
+            let success = GetTokenInformation(
+                h_token,
+                TokenPrivileges,
+                ptoken_privileges as *mut _,
+                dw_token_info_size,
+                &mut dw_token_info_size,
+            );
+            if success == FALSE {
+                eprintln!("ERROR::GET_TOKEN_INFORMATION");
+                eprintln!("ERROR::ENABLE::PRIVILEGE:::::::::4");
+                Common::Free(ptoken_privileges as *mut c_void);
+                if token.is_null() && !h_token.is_null() {
+                    CloseHandle(h_token);
+                }
+                return FALSE;
+            }
+
+            // Перебираем привилегии
+            for i in 0..(*ptoken_privileges).PrivilegeCount {
+                let privileges_ptr = (*ptoken_privileges).Privileges.as_ptr();
+                let mut luid_attr = *privileges_ptr.add(i as usize);
+
+                // Узнаём размер имени
+                let mut dw_name_len: DWORD = 0;
+                LookupPrivilegeNameW(
+                    null_mut(),
+                    &mut luid_attr.Luid as *mut _,
+                    null_mut(),
+                    &mut dw_name_len,
+                );
+                if GetLastError() != ERROR_INSUFFICIENT_BUFFER {
+                    eprintln!("ERROR::LookupPrivilegeNameW first call failed with unexpected error: {}", GetLastError());
+                    continue;
                 }
 
-                let size = dw_privilege_name_lenfht as usize * size_of::<u16>();
-                let ptr = Common::Alloc(size) as *mut u16;
-                pwsz_privilege_name_temp = ptr;
-                if pwsz_privilege_name_temp.is_null(){
-                    
-                    let res_: BOOL = LookupPrivilegeNameW(null() as *const u16, &mut laa.Luid as *mut LUID, pwsz_privilege_name_temp, dw_privilege_name_lenfht as *mut u32);
-                    if res_ == TRUE{
 
-                        let s1 = {
-                            let len = (0..).take_while(|&i| *pwsz_privilege_name_temp.add(i) != 0).count();
-                            String::from_utf16_lossy(std::slice::from_raw_parts(pwsz_privilege_name_temp, len))
-                        };
+                // Выделяем память под имя
+                pwsz_privilege_name_temp = Common::Alloc((dw_name_len as usize) * 2) as LPWSTR;
+                if pwsz_privilege_name_temp.is_null() {
+                    continue;
+                }
 
-                        let s2 = {
-                            let len = (0..).take_while(|&i| *privilege.add(i) != 0).count();
-                            String::from_utf16_lossy(std::slice::from_raw_parts(privilege, len))
-                        };
-
-                        if s1.eq_ignore_ascii_case(&s2) {
-                            bprivilege_found = TRUE;
-
-                            tp.PrivilegeCount = 1;
-                            tp.Privileges[0].Luid = laa.Luid;
-                            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-                            let res_:BOOL = AdjustTokenPrivileges(h_token, FALSE, &mut tp as *mut TOKEN_PRIVILEGES, std::mem::size_of_val(&tp) as u32, null_mut(), null_mut());
-                            if res_ == TRUE{
-                                b_result = TRUE;
-                            }else {
-                                eprintln!("ERROR::ADJUCT_TOKEN_PRIVILEGES");
-                                break;
-                            }
-                        }
-
-                    }else {
-                        eprintln!("ERROR::LOOKUP::PRIVILEGE::NAME");
-                    }
-
+                let success = LookupPrivilegeNameW(
+                    null_mut(),
+                    &luid_attr.Luid as *const _ as *mut _,
+                    pwsz_privilege_name_temp,
+                    &mut dw_name_len,
+                );
+                if success == FALSE {
+                    eprintln!("ERROR::LOOKUP::PRIVILEGE::NAME");
                     Common::Free(pwsz_privilege_name_temp as *mut c_void);
+                    continue;
+                }
+
+                // Сравнение с требуемым именем
+                let s1 = {
+                    let len = (0..).take_while(|&i| *pwsz_privilege_name_temp.add(i) != 0).count();
+                    String::from_utf16_lossy(std::slice::from_raw_parts(pwsz_privilege_name_temp, len))
+                };
+                let s2 = {
+                    let len = (0..).take_while(|&i| *privilege.add(i) != 0).count();
+                    String::from_utf16_lossy(std::slice::from_raw_parts(privilege, len))
+                };
+
+                Common::Free(pwsz_privilege_name_temp as *mut c_void);
+                pwsz_privilege_name_temp = null_mut();
+
+                println!("s1: {:?} and s2: {:?}", s1 , s2);
+                if s1.eq_ignore_ascii_case(&s2) {
+                    bprivilege_found = TRUE;
+
+                    let mut tp: TOKEN_PRIVILEGES = zeroed();
+                    tp.PrivilegeCount = 1;
+                    tp.Privileges[0].Luid = luid_attr.Luid;
+                    tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+                    let success = AdjustTokenPrivileges(
+                        h_token,
+                        FALSE,
+                        &mut tp,
+                        std::mem::size_of::<TOKEN_PRIVILEGES>() as u32,
+                        null_mut(),
+                        null_mut(),
+                    );
+                    if success == TRUE {
+                        b_result = TRUE;
+                    } else {
+                        eprintln!("ERROR::ADJUCT_TOKEN_PRIVILEGES");
+                    }
+                    break;
                 }
             }
 
-            if bprivilege_found == TRUE{
-            eprintln!("ERROR::ENABLE::PRIVILEGE");
+            if bprivilege_found == FALSE {
+                eprintln!("ERROR::ENABLE::PRIVILEGE:::::::::5");
             }
-            if !ptoken_privileges.is_null() {Common::Free(ptoken_privileges as *mut c_void);};
-            if token.is_null() && !h_token.is_null() {CloseHandle(h_token);};
-            return b_result;
-        }
-    }
 
+            if !ptoken_privileges.is_null() {
+                Common::Free(ptoken_privileges as *mut c_void);
+            }
+            if token.is_null() && !h_token.is_null() {
+                CloseHandle(h_token);
+            }
+        }
+        eprintln!("FINALE RESULT : {:?}", b_result);
+        b_result
+    }
 
     pub fn QueryServiceProcessId(service: LPCWSTR, mut process_id: PDWORD) -> BOOL {
         let mut b_result: BOOL = FALSE;
