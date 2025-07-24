@@ -138,7 +138,8 @@ pub union silobj {
     pub Path: UNICODE_STRING,
 }
 pub struct SILOOBJECT_ROOT_DIRECTORY {
-    pub sil_obj: silobj,
+    /*pub sil_obj: silobj,*/
+    pub ControlFlags: ULONG,
 }
 
 
@@ -155,6 +156,12 @@ pub struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION_V2 {
     pub PeakProcessMemoryUsed: SIZE_T,
     pub PeakJobMemoryUsed: SIZE_T,
     pub JobTotalMemoryLimit: SIZE_T,
+}
+
+
+#[repr(C)]
+pub struct JOBOBJECT_SILO_ROOT_DIRECTORY {
+    pub DirectoryHandle: HANDLE,
 }
 
 #[link(name = "ntdll")]

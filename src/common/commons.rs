@@ -636,7 +636,10 @@ impl Common {
                 /*println!("THREAD ID = {}, OWNER PID = {}", the.th32ThreadID, the.th32OwnerProcessID);*/
                 if the.th32OwnerProcessID == dw_service_pid{
                     h_thread = OpenThread(THREAD_ALL_ACCESS, FALSE, the.th32ThreadID);
-                    
+                    println!(
+                        "OpenThread::GetLastError={}",
+                        GetLastError()
+                    );
                     if !h_thread.is_null(){
                         break;
                     }

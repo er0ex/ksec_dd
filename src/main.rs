@@ -51,7 +51,7 @@ const CMD_CODE_DISABLE_CI: i32 = 1;
 const CMD_CODE_SET_CI: i32 = 2;
 const ULONG_MAX: u32 = u32::MAX;
 
-static mut c_b_print_verbode: BOOL = FALSE; //TRUE что бы включить сообщение
+static mut c_b_print_verbode: BOOL = TRUE; //TRUE что бы включить сообщение
 static mut c_dw_command_code: i32 = -1;
 static mut c_dw_ci_options: DWORD = 0;
 
