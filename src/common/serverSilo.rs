@@ -36,7 +36,7 @@ impl ServerSilo{
 
         if self.CreateJob(&mut h_job as *mut *mut c_void, JOB_OBJECT_ALL_ACCESS) == FALSE { return b_res; };
         if ServerSilo::SetLimitFlags(h_job, JOB_OBJECT_LIMIT_SILO_READY) == FALSE { return b_res; };
-        if ServerSilo::ConvertJobToSilo(h_job) == FALSE { return b_res; };
+        if ServerSilo::ConvertJobToSilo(h_job) == FALSE {eprintln!("ERROR::JOB::TO::SILO"); return b_res; };
         if ServerSilo::AssignProcess(h_job, cur_proc as *mut c_void)  == FALSE { return b_res; };
         if ServerSilo::SetRootDirectory(h_job, SILO_OBJECT_ROOT_DIRECTORY_ALL) == FALSE { println!("ERROR::SET::DIR::IN::CREATE_SILO"); return b_res; };
 
