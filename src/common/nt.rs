@@ -137,12 +137,12 @@ pub union silobj {
     pub ControlFlags: ULONG,
     pub Path: UNICODE_STRING,
 }
+#[repr(C)]
 pub struct SILOOBJECT_ROOT_DIRECTORY {
     /*pub sil_obj: silobj,*/
     pub ControlFlags: ULONG,
 }
-
-
+#[repr(C)]
 pub struct SERVERSILO_INIT_INFORMATION {
     pub DelereEvent: HANDLE,
     pub IsDownLevelContainer: BOOLEAN,

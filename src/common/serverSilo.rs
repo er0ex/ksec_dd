@@ -8,7 +8,7 @@ use winapi::{ctypes::c_void,
     shared::{minwindef::{BOOL, DWORD, FALSE, MAX_PATH, TRUE, ULONG}, 
     ntdef::{InitializeObjectAttributes, HANDLE, LPCWSTR, LPWSTR, NTSTATUS, NT_SUCCESS, NULL, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, PHANDLE, UNICODE_STRING, WCHAR}, 
     ntstatus::STATUS_INFO_LENGTH_MISMATCH}, 
-    um::{errhandlingapi::GetLastError, handleapi::CloseHandle, processthreadsapi::GetCurrentProcess, subauth::PUNICODE_STRING, winnt::{JobObjectCreateSilo, JobObjectExtendedLimitInformation, ACCESS_MASK, JOBOBJECTINFOCLASS, JOB_OBJECT_ALL_ACCESS, MAXIMUM_ALLOWED, PSILOOBJECT_BASIC_INFORMATION}}};
+    um::{errhandlingapi::GetLastError, handleapi::{CloseHandle, GetHandleInformation}, processthreadsapi::GetCurrentProcess, subauth::PUNICODE_STRING, winnt::{JobObjectCreateSilo, JobObjectExtendedLimitInformation, ACCESS_MASK, JOBOBJECTINFOCLASS, JOB_OBJECT_ALL_ACCESS, MAXIMUM_ALLOWED, PSILOOBJECT_BASIC_INFORMATION}}};
 use windows::{core::imp::CreateEventW, Win32::System::SystemInformation::GetWindowsDirectoryW};
 
 use crate::common::{commons::Common, nt::{silobj, JobObjectServerSiloInitialize, JobObjectSiloRootDirectory, JobObjectSiloSystemRoot, NtAssignProcessToJobObject, NtCreateDirectoryObjectEx, NtCreateJobObject, NtOpenDirectoryObject, NtQueryInformationJobObject, NtSetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION_V2, JOB_OBJECT_LIMIT_SILO_READY, SERVERSILO_INIT_INFORMATION, SILOOBJECT_ROOT_DIRECTORY, SILO_OBJECT_ROOT_DIRECTORY_ALL, STATUS_SUCCESS}};
@@ -37,7 +37,7 @@ impl ServerSilo{
         if self.CreateJob(&mut h_job as *mut *mut c_void, JOB_OBJECT_ALL_ACCESS) == FALSE { return b_res; };
         if ServerSilo::SetLimitFlags(h_job, JOB_OBJECT_LIMIT_SILO_READY) == FALSE { return b_res; };
         if ServerSilo::ConvertJobToSilo(h_job) == FALSE {eprintln!("ERROR::JOB::TO::SILO"); return b_res; };
-        if ServerSilo::AssignProcess(h_job, cur_proc as *mut c_void)  == FALSE { return b_res; };
+        if ServerSilo::AssignProcess(h_job, cur_proc as *mut c_void)  == FALSE {eprintln!("ERROR::JOB::TO::SILO"); return b_res; };
         if ServerSilo::SetRootDirectory(h_job, SILO_OBJECT_ROOT_DIRECTORY_ALL) == FALSE { println!("ERROR::SET::DIR::IN::CREATE_SILO"); return b_res; };
 
         unsafe{*silo = h_job};
@@ -247,7 +247,7 @@ impl ServerSilo{
             return;
         };
 
-        if self.CreateSilo(self.m_h_server_silo as *mut *mut _) == FALSE{
+        if self.CreateSilo(self.m_h_server_silo as PHANDLE) == FALSE{
             eprintln!("ERROR::CREATE::SILO::(ServerSilo.rs)");
             return;
         }
@@ -375,8 +375,7 @@ impl ServerSilo{
 
 
     pub fn SetRootDirectory(job: HANDLE, root_directory_flags: DWORD) -> BOOL {
-        let mut b_result: BOOL = FALSE;
-        let mut status: NTSTATUS;
+        let status: NTSTATUS;
         let mut sro: SILOOBJECT_ROOT_DIRECTORY = unsafe {zeroed()};
 
 
@@ -386,6 +385,17 @@ impl ServerSilo{
             eprintln!("ERROR: job handle is NULL");
             return FALSE;
         }
+
+        let flags: *mut u32 = null_mut();
+        let valid_handle = unsafe { GetHandleInformation(job, flags) != 0 };
+        if !valid_handle {
+            eprintln!("ERROR: invalid or closed job handle");
+            return FALSE;
+        }
+
+
+        println!("DEBUG: job = {:?}", job);
+        println!("DEBUG: flags = 0x{:X}", root_directory_flags);
 
         status = unsafe{NtSetInformationJobObject(job,
             JobObjectSiloRootDirectory as JOBOBJECTINFOCLASS,

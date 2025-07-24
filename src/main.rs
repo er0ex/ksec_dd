@@ -79,7 +79,7 @@ pub fn PrintUsage(prog: *mut wchar_t){
 
 pub unsafe fn ExecuteCommand(cc: i32){
     let mut ksec: KsecDD = unsafe {zeroed()};
-    let mut silo: ServerSilo = unsafe { zeroed::<ServerSilo>() };
+    let mut silo: ServerSilo = unsafe { zeroed() };
     let mut h_schedule_token: HANDLE = NULL;
     let mut pi: PROCESS_INFORMATION = unsafe{zeroed()};
     let mut b_impersonation:BOOL = FALSE;
@@ -120,6 +120,7 @@ pub unsafe fn ExecuteCommand(cc: i32){
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
         println!("ERROR::MAIN::SILO_INIT::PRIVILEGES");
+        return;
     }
     println!("Silo created and initialized (path is {:?})", silo.GetRootDirectory());
 
