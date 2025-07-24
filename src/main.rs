@@ -9,6 +9,7 @@ use common::commons;
 use ntapi::ntobapi::NtClose;
 use ntapi::ntobapi::NtWaitForSingleObject;
 use winapi::ctypes::c_void;
+use winapi::um::errhandlingapi::GetLastError;
 use winapi::um::handleapi::CloseHandle;
 use winapi::um::securitybaseapi::RevertToSelf;
 use winapi::um::winbase::INFINITE;
@@ -79,7 +80,6 @@ pub fn PrintUsage(prog: *mut wchar_t){
 pub unsafe fn ExecuteCommand(cc: i32){
     let mut ksec: KsecDD = unsafe {zeroed()};
     let mut silo: ServerSilo = unsafe { zeroed::<ServerSilo>() };
-    silo.new();
     let mut h_schedule_token: HANDLE = NULL;
     let mut pi: PROCESS_INFORMATION = unsafe{zeroed()};
     let mut b_impersonation:BOOL = FALSE;
@@ -92,9 +92,12 @@ pub unsafe fn ExecuteCommand(cc: i32){
     }
     println!("Enabled required privileges.\n");
 
-    let _res: BOOL = Common::OpenServiceToken("Schedule".as_ptr() as *mut u16,&mut h_schedule_token as *mut *mut c_void);
+
+    let schedule: Vec<u16> = "Schedule".encode_utf16().chain(std::iter::once(0)).collect();
+    let schedule_ptr: *mut u16 = schedule.as_ptr() as *mut u16;
+    let _res: BOOL = Common::OpenServiceToken(schedule_ptr ,&mut h_schedule_token as *mut *mut c_void);
     if _res == FALSE{
-        println!("ERROR::MAIN::OPEN_SERVICE_TOKEN_W::PRIVILEGES");
+        println!("ERROR::MAIN::OPEN_SERVICE_TOKEN_W::{:?}", GetLastError());
     }
     println!("Got Schedule service's token.\n");
 
@@ -112,10 +115,11 @@ pub unsafe fn ExecuteCommand(cc: i32){
 
     b_impersonation = TRUE;
 
+    silo.new();
     if silo.IsInitialized() == FALSE {
         unsafe{RevertToSelf()};
         unsafe{CloseHandle(h_schedule_token)};
-        println!(ERROR::MAIN::SILO_INIT::PRIVILEGES");
+        println!("ERROR::MAIN::SILO_INIT::PRIVILEGES");
     }
     println!("Silo created and initialized (path is {:?})", silo.GetRootDirectory());
 

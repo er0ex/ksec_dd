@@ -5,7 +5,8 @@ use winapi::{
         minwindef::{BOOL, DWORD, FALSE, HMODULE, LPVOID, PBYTE, PDWORD, TRUE, ULONG},
         ntdef::{NTSTATUS, NT_SUCCESS, NULL}, ntstatus::STATUS_PROCESS_CLONED, winerror::ERROR_INSUFFICIENT_BUFFER}, 
     um::{
-        errhandlingapi::GetLastError, handleapi::{CloseHandle, INVALID_HANDLE_VALUE}, heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, libloaderapi::{FreeLibrary, GetProcAddress, LoadLibraryExW, DONT_RESOLVE_DLL_REFERENCES}, processthreadsapi::{GetCurrentProcess, GetCurrentThread, GetProcessId, OpenProcessToken, OpenThread, OpenThreadToken, SetThreadToken, LPPROCESS_INFORMATION}, securitybaseapi::{AdjustTokenPrivileges, GetTokenInformation, RevertToSelf}, tlhelp32::{Thread32First, Thread32Next, THREADENTRY32}, winbase::{FormatMessageW, LocalFree, LookupPrivilegeNameW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS}, winnt::{SecurityImpersonation, TokenPrivileges, CHAR, HANDLE, HEAP_ZERO_MEMORY, IMAGE_NT_HEADERS, IMAGE_SCN_CNT_CODE, IMAGE_SCN_MEM_EXECUTE, IMAGE_SECTION_HEADER, LANG_NEUTRAL, LONG, LPCSTR, LPCWSTR, LPWSTR, LUID, LUID_AND_ATTRIBUTES, MAKELANGID, MAXIMUM_ALLOWED, PHANDLE, PIMAGE_NT_HEADERS, PIMAGE_SECTION_HEADER, PTOKEN_PRIVILEGES, PVOID, SECURITY_QUALITY_OF_SERVICE, SE_PRIVILEGE_ENABLED, SUBLANG_DEFAULT, THREAD_DIRECT_IMPERSONATION, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY}, winsvc::{CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, SC_HANDLE, SC_MANAGER_CONNECT, SC_STATUS_PROCESS_INFO, SERVICE_QUERY_STATUS, SERVICE_STATUS_PROCESS}
+        errhandlingapi::GetLastError, handleapi::{CloseHandle, INVALID_HANDLE_VALUE}, heapapi::{GetProcessHeap, HeapAlloc, HeapFree}, libloaderapi::{FreeLibrary, GetProcAddress, LoadLibraryExW, DONT_RESOLVE_DLL_REFERENCES}, processthreadsapi::{GetCurrentProcess, GetCurrentThread, GetProcessId, OpenProcessToken, OpenThread, OpenThreadToken, SetThreadToken, LPPROCESS_INFORMATION}, securitybaseapi::{AdjustTokenPrivileges, GetTokenInformation, RevertToSelf}, tlhelp32::{CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32}, winbase::{FormatMessageW, LocalFree, LookupPrivilegeNameW, FORMAT_MESSAGE_ALLOCATE_BUFFER, FORMAT_MESSAGE_FROM_SYSTEM, FORMAT_MESSAGE_IGNORE_INSERTS}, 
+        winnt::{SecurityImpersonation, TokenPrivileges, CHAR, HANDLE, HEAP_ZERO_MEMORY, IMAGE_NT_HEADERS, IMAGE_SCN_CNT_CODE, IMAGE_SCN_MEM_EXECUTE, IMAGE_SECTION_HEADER, LANG_NEUTRAL, LONG, LPCSTR, LPCWSTR, LPWSTR, LUID, LUID_AND_ATTRIBUTES, MAKELANGID, MAXIMUM_ALLOWED, PHANDLE, PIMAGE_NT_HEADERS, PIMAGE_SECTION_HEADER, PTOKEN_PRIVILEGES, PVOID, SECURITY_QUALITY_OF_SERVICE, SE_PRIVILEGE_ENABLED, SUBLANG_DEFAULT, THREAD_ALL_ACCESS, THREAD_DIRECT_IMPERSONATION, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY}, winsvc::{CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceStatusEx, SC_HANDLE, SC_MANAGER_CONNECT, SC_STATUS_PROCESS_INFO, SERVICE_QUERY_STATUS, SERVICE_STATUS_PROCESS}
     },
 };
 
@@ -554,9 +555,9 @@ impl Common {
         unsafe{
             *process_id = 0;
 
-            h_scm = OpenSCManagerW(null_mut(), SERVICES_ACTIVE_DATABASE.as_ptr() as *mut _, SC_MANAGER_CONNECT);
+            h_scm = OpenSCManagerW(null_mut(), SERVICES_ACTIVE_DATABASE.as_ptr(), SC_MANAGER_CONNECT);
             if h_scm.is_null(){
-                eprintln!("ERROR::OPEN_SCManagerW");
+                eprintln!("ERROR::OPEN_SCManagerW::1");
                 if !h_service.is_null() {CloseServiceHandle(h_service);};
                 if !h_scm.is_null() {CloseServiceHandle(h_scm);};
                 return b_result;
@@ -564,7 +565,7 @@ impl Common {
 
             h_service = OpenServiceW(h_scm, service, SERVICE_QUERY_STATUS);
             if h_service.is_null() {
-                eprintln!("ERROR::OPEN_ServiceW");
+                eprintln!("ERROR::OPEN_ServiceW::2");
                 if !h_service.is_null() {CloseServiceHandle(h_service);};
                 if !h_scm.is_null() {CloseServiceHandle(h_scm);};
                 return b_result;
@@ -581,7 +582,6 @@ impl Common {
             *process_id = spp.dwProcessId;
             b_result = TRUE;
 
-            eprintln!("ERROR::OPEN_SCManagerW");
             if !h_service.is_null() {CloseServiceHandle(h_service);};
             if !h_scm.is_null() {CloseServiceHandle(h_scm);};
             return b_result;
@@ -611,9 +611,19 @@ impl Common {
                 return b_result;
             }
 
+            h_snapsho = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+            if h_snapsho == INVALID_HANDLE_VALUE {
+                eprintln!("ERROR::H_SNAPSHOT::INIT");
+                if b_result == FALSE && !h_token.is_null() {CloseHandle(h_token);};
+                if b_impresonation == TRUE {RevertToSelf();};
+                if !h_thread.is_null() {CloseHandle(h_thread);};
+                if !h_snapsho.is_null() && h_snapsho != INVALID_HANDLE_VALUE {CloseHandle(h_snapsho);};
+                return b_result;
+            }
+
             the.dwSize = std::mem::size_of_val(&the)as u32;
 
-            if Thread32First(h_snapsho, &mut the as *mut _) == FALSE{
+            if Thread32First(h_snapsho, &mut the) == FALSE{
                 eprintln!("ERROR::THREAD_32_FIRST");
                 if b_result == FALSE && !h_token.is_null() {CloseHandle(h_token);};
                 if b_impresonation == TRUE {RevertToSelf();};
@@ -623,19 +633,21 @@ impl Common {
             }
 
             loop {
+                /*println!("THREAD ID = {}, OWNER PID = {}", the.th32ThreadID, the.th32OwnerProcessID);*/
                 if the.th32OwnerProcessID == dw_service_pid{
-                    h_thread = OpenThread(THREAD_DIRECT_IMPERSONATION, FALSE, the.th32ThreadID);
+                    h_thread = OpenThread(THREAD_ALL_ACCESS, FALSE, the.th32ThreadID);
+                    
                     if !h_thread.is_null(){
                         break;
                     }
                 }
 
-                if Thread32Next(h_snapsho, &mut the as *mut _) == FALSE{
+                if Thread32Next(h_snapsho,  &mut the as *mut THREADENTRY32) == FALSE{
                     break;
                 }
             }
 
-            if !h_thread.is_null(){
+            if h_thread.is_null(){
                 eprintln!("ERROR::OPEN::THREAD");
                 if b_result == FALSE && !h_token.is_null() {CloseHandle(h_token);};
                 if b_impresonation == TRUE {RevertToSelf();};

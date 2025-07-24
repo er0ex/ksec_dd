@@ -1,7 +1,7 @@
 use std::{iter::once, mem::zeroed, os::windows::ffi::OsStringExt, ptr::null_mut};
 
 use ntapi::{ntobapi::NtClose, ntpsapi::{NtTerminateJobObject, PSILOOBJECT_ROOT_DIRECTORY}, ntrtl::{RtlCreateUnicodeString, RtlFreeUnicodeString, RtlInitUnicodeString}};
-use winapi::{ctypes::c_void, shared::{minwindef::{BOOL, DWORD, FALSE, MAX_PATH, TRUE, ULONG}, ntdef::{InitializeObjectAttributes, HANDLE, LPCWSTR, LPWSTR, NTSTATUS, NT_SUCCESS, NULL, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, PHANDLE, UNICODE_STRING, WCHAR}, ntstatus::STATUS_INFO_LENGTH_MISMATCH}, um::{handleapi::CloseHandle, subauth::PUNICODE_STRING, winnt::{JobObjectCreateSilo, JobObjectExtendedLimitInformation, ACCESS_MASK, JOB_OBJECT_ALL_ACCESS, MAXIMUM_ALLOWED, PSILOOBJECT_BASIC_INFORMATION}}};
+use winapi::{ctypes::c_void, shared::{minwindef::{BOOL, DWORD, FALSE, MAX_PATH, TRUE, ULONG}, ntdef::{InitializeObjectAttributes, HANDLE, LPCWSTR, LPWSTR, NTSTATUS, NT_SUCCESS, NULL, OBJECT_ATTRIBUTES, OBJ_CASE_INSENSITIVE, PHANDLE, UNICODE_STRING, WCHAR}, ntstatus::STATUS_INFO_LENGTH_MISMATCH}, um::{errhandlingapi::GetLastError, handleapi::CloseHandle, subauth::PUNICODE_STRING, winnt::{JobObjectCreateSilo, JobObjectExtendedLimitInformation, ACCESS_MASK, JOB_OBJECT_ALL_ACCESS, MAXIMUM_ALLOWED, PSILOOBJECT_BASIC_INFORMATION}}};
 use windows::{core::imp::CreateEventW, Win32::System::SystemInformation::GetWindowsDirectoryW};
 
 use crate::common::{commons::Common, nt::{JobObjectServerSiloInitialize, JobObjectSiloRootDirectory, JobObjectSiloSystemRoot, NtAssignProcessToJobObject, NtCreateDirectoryObjectEx, NtCreateJobObject, NtOpenDirectoryObject, NtQueryInformationJobObject, NtSetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION_V2, JOB_OBJECT_LIMIT_SILO_READY, SERVERSILO_INIT_INFORMATION, SILOOBJECT_ROOT_DIRECTORY, SILO_OBJECT_ROOT_DIRECTORY_ALL, STATUS_SUCCESS}};
@@ -19,7 +19,11 @@ impl ServerSilo{
         let mut b_res: BOOL = FALSE;
         let mut h_job: HANDLE = NULL;
 
-        unsafe {*silo = NULL};
+        if !silo.is_null(){
+            unsafe {*silo = NULL};
+        }else {
+            eprintln!("ERROR::NULL POINTER to `silo`, cannot assign.");
+        }
 
         if self.CreateJob(&mut h_job as *mut *mut c_void, JOB_OBJECT_ALL_ACCESS) == FALSE { return b_res; };
         if ServerSilo::SetLimitFlags(h_job, JOB_OBJECT_LIMIT_SILO_READY) == FALSE { return b_res; };
@@ -229,23 +233,29 @@ impl ServerSilo{
         self.m_b_is_initialized = NULL as i32;
 
         self.m_h_delete_event = unsafe{CreateEventW(null_mut(), TRUE, FALSE, null_mut()) as *mut c_void};
-        if !self.m_h_delete_event.is_null() {
+        if self.m_h_delete_event.is_null() {
+            unsafe{eprintln!("ERROR::CREATE_EVENT::(ServerSilo.rs)::{:?}", GetLastError())};
             return;
         };
 
         if self.CreateSilo(self.m_h_server_silo as *mut *mut _) == FALSE{
+            eprintln!("ERROR::CREATE::SILO::(ServerSilo.rs)");
             return;
         }
         if unsafe{Self::SetSystemRoot(self.m_h_server_silo, null_mut()) == FALSE}{
+            eprintln!("ERROR::SET::SYS_ROOT::(ServerSilo.rs)");
             return;
         }
         if Self::QueryRootDirectory(self.m_h_server_silo, self.m_pwsz_root_directory) == FALSE{
+            eprintln!("ERROR::QUERY::ROOT_DIR::(ServerSilo.rs)");
             return;
         }
         if Self::CreateDeviceDirectory(self.m_pwsz_root_directory) == FALSE{
+            eprintln!("ERROR::CREATE::DEVICE_DIR::(ServerSilo.rs)");
             return;
         }
         if Self::Initialize(self.m_h_server_silo, self.m_h_delete_event) == FALSE{
+            eprintln!("ERROR::INITIALIZE::SILO::(ServerSilo.rs)");
             return;
         }
 
